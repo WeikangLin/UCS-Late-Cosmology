@@ -1,0 +1,142 @@
+# python 3.6
+# author Weikang Lin
+
+#### Define my own Background functions:
+
+
+import numpy as np
+from scipy import integrate
+
+# fitting constants for the massive neutrino transitions:
+n_w = 1.8367
+alpha_w = 3.1515
+Tv = 1.945/1.160451812E4  # massless neutrino temperature in eV
+
+
+# some background function:
+# Flat LCDM with neutrinos
+# first take normal hierarchy with one massless, needs to be generalized into the other hierarchy with another one massive as well
+def Ez_flat_LCDM(z,p):  # Integrand of the comoving distance in the unit of 1/H0
+    a=1./(1.+z)
+    Ogamma = 2.472E-5/p.h**2  # O_gamma = 2.472/h^2 * 10^-5
+    # neutrinos: take 1 massless neutrinos, normal hierarchy, ignore mass^2 difference uncertainties:
+    if p.m_v1==0.0:
+        Ov1 = 5.617E-6/p.h**2  # massless Ov_massless = 5.617/h^2 * 10^-6
+        E_v1 = Ov1*(1.0+z)**4
+    else:
+        Ov1 = p.m_v1/93.14/p.h**2  # these treatments are good for m_v1=0 or m_v1>2K
+        aT_v1 = Tv/p.m_v1*alpha_w
+        E_v1 = Ov1/a**4*((a**n_w+aT_v1**n_w)/(1.+aT_v1**n_w))**(1./n_w)
+
+    m_v2 = (7.9E-5+p.m_v1**2)**0.5
+    Ov2 = m_v2/93.14/p.h**2  # massive Ov_massive = m(eV)/93.14/h^2
+    aT_v2 = Tv/m_v2*alpha_w
+    E_v2 = Ov2/a**4*((a**n_w+aT_v2**n_w)/(1.+aT_v2**n_w))**(1./n_w)
+    
+    m_v3 = (2.2E-3+p.m_v1**2)**0.5
+    Ov3 = m_v3/93.14/p.h**2 #0.001028  # massive Ov_massive = m(eV)/93.14/h^2
+    aT_v3 = Tv/m_v3*alpha_w
+    E_v3 = Ov3/a**4*((a**n_w+aT_v3**n_w)/(1.+aT_v3**n_w))**(1./n_w)
+    
+    return (1.0-p.Om-Ogamma-Ov1-Ov2-Ov3 + p.Om*(1.0+z)**3 + Ogamma*(1.0+z)**4 + E_v1 + E_v2 + E_v3 )**0.5
+    
+
+    
+def Ez_KwwaCDM(z,p):  # Integrand of the comoving distance in the unit of 1/H0
+    a=1./(1.+z)
+    Ogamma = 2.472E-5/p.h**2  # O_gamma = 2.472/h^2 * 10^-5
+    # neutrinos: take 1 massless neutrinos, normal hierarchy, ignore mass^2 difference uncertainties:
+    if p.m_v1==0.0:
+        Ov1 = 5.617E-6/p.h**2  # massless Ov_massless = 5.617/h^2 * 10^-6
+        E_v1 = Ov1*(1.0+z)**4
+    else:
+        Ov1 = p.m_v1/93.14/p.h**2  # these treatments are good for m_v1=0 or m_v1>2K
+        aT_v1 = Tv/p.m_v1*alpha_w
+        E_v1 = Ov1/a**4*((a**n_w+aT_v1**n_w)/(1.+aT_v1**n_w))**(1./n_w)
+
+    m_v2 = (7.9E-5+p.m_v1**2)**0.5
+    Ov2 = m_v2/93.14/p.h**2  # massive Ov_massive = m(eV)/93.14/h^2
+    aT_v2 = Tv/m_v2*alpha_w
+    E_v2 = Ov2/a**4*((a**n_w+aT_v2**n_w)/(1.+aT_v2**n_w))**(1./n_w)
+    
+    m_v3 = (2.2E-3+p.m_v1**2)**0.5
+    Ov3 = m_v3/93.14/p.h**2 #0.001028  # massive Ov_massive = m(eV)/93.14/h^2
+    aT_v3 = Tv/m_v3*alpha_w
+    E_v3 = Ov3/a**4*((a**n_w+aT_v3**n_w)/(1.+aT_v3**n_w))**(1./n_w)
+    
+    Ode0 = 1.0-p.Om-Ogamma-Ov1-Ov2-Ov3-p.Ok
+    Ode_z = Ode0 * np.exp(3.*(1.+p.w0+p.wa)*np.log(1+z)-3.*p.wa*z/(1+z))
+    
+    return (Ode_z + p.Ok*(1.0+z)**2 + p.Om*(1.0+z)**3 + Ogamma*(1.0+z)**4 + E_v1 + E_v2 + E_v3 )**0.5
+    
+    
+
+def Hz(z,p):
+    h=H0/100
+    return Ez_flat_LCDM(z,p)*H0
+
+def dageH0_LCDM_postrebom(z,p):      # post recombination, so radiation is ignored
+    return 1/Ez_flat_LCDM(z,p)/(1+z)
+
+def ageH0_LCDM_postrebom(z,Om,h=0.7, m_v1=0.0):
+    temp = integrate.quad(dageH0_LCDM_postrebom, 0, z, args=(Om,h, m_v1,))
+    return temp[0]
+
+def age_LCDM_postrebom(z,H0,Om, m_v1=0.0):
+    h=H0/100
+    return 978.5644/H0*ageH0_LCDM_postrebom(z,Om,h, m_v1)     # 978.5644 is 1/(km/s/Mpc) in Gyrs
+
+def fC_LCDM(z,p):
+    nll = lambda *args: 1/Ez_flat_LCDM(*args)
+    temp = integrate.quad(nll, 0, z, args=(Om,h, m_v1))
+    return temp[0]
+
+def ft_LCDM(zs,zl,p):
+    fM_s_temp = fC_LCDM(zs,Om,h, m_v1)
+    fM_l_temp = fC_LCDM(zl,Om,h, m_v1)
+    return fM_l_temp*fM_s_temp/(fM_s_temp-fM_l_temp)
+
+
+# relation of H0 and Om in LCDM given the age:
+def H0_Om_age_bound(H0,age_star,z_star,m_v1=0.0):
+    h=H0/100
+    Om_low = 0
+    Om_high = 1
+    while (Om_high-Om_low)>1E-4:
+        Om_try = (Om_high+Om_low)/2
+        if age_LCDM_postrebom(z_star,H0,Om_try,m_v1) > age_star:
+            Om_low = Om_try
+        else:
+            Om_high = Om_try
+    return Om_try
+
+
+
+# Observations for late-time BAO
+# AP= delta(z)/delta(\theta)
+def AP(z,p):
+    return Ez_flat_LCDM(z,p)*fC_LCDM(z,p)
+
+def fV_LCDM(z,p):
+    return (z/Ez_flat_LCDM(z,p)*(fC_LCDM(z,Om,h, m_v1))**2)**(1/3.0)
+
+
+
+
+# For sound speed and sound horizon:
+def BAO_sound_speed(z, omegabh2):
+    return 1./( 3*(1+1/(1+z)*3*omegabh2/4/(2.472E-5) ) )**0.5     # sound speed, needs to make it general
+
+def sound_horizon_integrand(z, p):
+    return BAO_sound_speed(z, p.Obh2)/Ez_KwwaCDM(z,p)
+#return BAO_sound_speed(z)/np.sqrt(1-Om-4.15E-5/h**2+Om*(1+z)**3+4.15E-5/h**2*(1+z)**4)
+
+def Delta_rH0(p):
+    nll = lambda *args: sound_horizon_integrand(*args)
+    temp = integrate.quad(nll, p.zstar-p.Deltazrec, p.zstar, args=(p,))
+    return temp[0]
+
+def rH0(p, z_end):
+    nll = lambda *args: sound_horizon_integrand(*args)
+    temp = integrate.quad(nll, z_end, np.inf, args=(p,))
+    return temp[0]
